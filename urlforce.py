@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 ##
 ## URL Force
-## Version: 1.0.2
+## Version: 1.0.3
 ## https://github.com/LiquidAssassin/URLForce/
 ##
 
@@ -34,11 +34,30 @@ from colorama import Fore, Back, Style
 
 def checkWAF(host):
 	newLog("Attempting to detect if host is protected by a WAF.", "I", "*")
+	wafa = requests.get(host, verify = False, allow_redirects = True, header = webReqHeaders, timeout = webTimeout)
+	
+	if resp.headers['aeSecure-code'] or "aesecure_denied.png" in resp.content:
+		return "AESecure"
+	elif "<title>Requested URL cannot be found</title>" in resp.content and "Proceed to homepage" in resp.content and "Reference ID:" in resp.content:
+		return "AlertLogic"
+	elif resp.status_code == 405 and "errors.aliyun.com" in resp.content:
+		return "AliYunDun"
+	elif resp.status_code == 405 and "aqb_cc/error/" in resp.content:
+		return "Anquanbao"
+	elif "Sorry! your access has been intercepted by AnYu" in resp.content and "AnYu- the green channel" in resp.content:
+		return "AnYu"
+	elif "Approach Web Application Firewall" in resp.headers:
+		return "Approach"
+	else:
+		for cookie in response.cookies:
+			if "__cfduid" in str(cookie):
+				return "CloudFlare"
+	
 	simplePayload = "/etc/passwd/;~/.bashrc;~/.mdb;%00;"
 	resp = requests.get(host, verify = False, allow_redirects = True, headers = webReqHeaders, timeout = webTimeout)
 	respa = requests.get(host + simplePayload, verify = False, allow_redirects = True, headers = webReqHeaders, timeout = webTimeout)
 	if resp.status_code == 200:
-		if respa.status_code != 400:
+		if respa.status_code != 400 and respa.status_code != 200:
 			return True
 		else:
 			return False
@@ -125,22 +144,24 @@ def progress(count, total, suffix=''):
 	sys.stdout.flush()
 
 def newLog(m, t, symbol):
-	#if t == "I":
-	#	logging.info(m)
-	#elif t == "D":
-	#	logging.debug(m)
-	#elif t == "W":
-	#	logging.warning(m)
-	#elif t == "E":
-	#	logging.error(m)
-	#elif t == "C":
-	#	logging.error(m)
-	symColor = Fore.CYAN
-	if symbol == "+":
-		symColor = Fore.GREEN
-	elif symbol == "-":
-		symColor = Fore.RED
-	print(Fore.WHITE + "[" + symColor + symbol + Fore.WHITE + "] " + symColor + m)
+	if args.file:
+		if t == "I":
+			logging.info(m)
+		elif t == "D":
+			logging.debug(m)
+		elif t == "W":
+			logging.warning(m)
+		elif t == "E":
+			logging.error(m)
+		elif t == "C":
+			logging.error(m)
+	else:
+		symColor = Fore.CYAN
+		if symbol == "+":
+			symColor = Fore.GREEN
+		elif symbol == "-":
+			symColor = Fore.RED
+		print(Fore.WHITE + "[" + symColor + symbol + Fore.WHITE + "] " + symColor + m)
 
 urllib3.disable_warnings()
 
@@ -162,14 +183,18 @@ if args.file:
 else:
 	logging.basicConfig(format = '%(asctime)s - %(message)s', level = loggingLevel)
 
-newLog("URL Force v1.0.2", "I", "*")
-newLog("Last Updated: 5/23/2019", "I", "*")
+newLog("URL Force v1.0.3", "I", "*")
+newLog("Last Updated: 5/27/2019", "I", "*")
 newLog("Created By: AZer0", "I", "*")
 
 webReqHeaders['Referer'] = args.host
 
-if checkWAF(args.host) == True:
-	newLog("WAF Detected!", "W", "+")
+cWAF = checkWAF(args.host)
+if cWAF != True:
+	if cWAF == True:
+		newLog("WAF Detected!", "W", "+")
+	else:
+		newLog("WAF Detected [" + cWAF + "]!", "W", "+")
 	print("")
 
 HeaderForce(args.host)
